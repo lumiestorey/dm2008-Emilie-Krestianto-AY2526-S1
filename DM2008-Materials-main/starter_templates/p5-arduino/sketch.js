@@ -1,5 +1,18 @@
-let port; // do not remove or rename
+///arduino 
+let port; 
 let serialData;
+let dir;
+let resetBtn;
+
+//sound
+var sfxGameStart;
+var sfxGameOver;
+var sfxScore;
+
+//colours 
+let pink = "#d73e7b";
+let darkpink = "#9e1c50";
+let peach = "#febe90";
 
 //bg scroll
 let lane1;
@@ -11,18 +24,31 @@ var scroll = 12;
 let candySpawn = [];
 let candyLane = [];
 let spawnCounter = 0;
-const SPAWN_RATE = 90;
+const SPAWN_RATE = 40;
 const CANDY_SPEED = 12;
+
+let holeSpawn = [];
+let holeCounter = 0;
+const HOLE_RATE = 400;
+const HOLE_SPEED = 12;
 
 //game
 let score = 0;
+let highScore = 0;
+const HIGH_SCORE = 1;
 let isGameOver = false;
 let hasGameBegun = false;
+const TIMER_SPEED = 0.75;
+
 
 /*----------------- preload -----------------*/
 function preload() {
-  arcadeFont = loadFont("KarmaticArcade.ttf");
-  bodyFont = loadFont("PressStart.ttf");
+  arcadeFont = loadFont("/font/KarmaticArcade.ttf");
+  bodyFont = loadFont("/font/PressStart.ttf");
+
+  sfxGameStart = loadSound("/assets/sfx-gamestart.mp3");
+  sfxGameOver = loadSound("/assets/sfx-gameover.mp3");
+  sfxScore = loadSound("/assets/sfx-score.mp3");
 
   bg = loadImage("/assets/background.jpg");
   carImage = loadImage("/assets/car.png");
@@ -33,6 +59,13 @@ function preload() {
   candy4 = loadImage("/assets/candy-greensquare.png");
 
   candies = [candy1, candy2, candy3, candy4];
+
+  sinkHole = loadImage("/assets/sinkhole-01.png");
+
+  vanellopeIcon = loadImage("/assets/vanellope-icon.png");
+  vanellopeFinishline = loadImage("/assets/vanellope-finishline.png");
+
+  finishLine = loadImage("/assets/finish-line.png");
 }
 
 /*----------------- set up -----------------*/
@@ -40,47 +73,63 @@ function setup() {
   // Change this if you want a fixed size canvas
   createCanvas(windowWidth, windowHeight);
   port = createSerial(); // creates the Serial Port
+  
+
+  if (sfxGameStart.isPlaying() === false) {
+    sfxGameStart.play();
+  }
 
   imageMode(CENTER);
 
-  lane1 = bg.height / 2;
-  lane2 = 0 - bg.height / 2;
-  candyLane = [width * 0.35, width / 2, width * 0.65];
-  candySpawn.push(new Candy(random(candyLane), -50));
+  let savedHighScore = getItem("highScore");
+  if (savedHighScore !== null) {
+    highScore = int(savedHighScore);
+  }
 
-  car = new Car(width / 2, height - 350);
+  lane1 = height/2;
+  lane2 = -height/2;
+  candyLane = [width * 0.35, width / 2, width * 0.65];
+  //candySpawn.push(new Candy(random(candyLane), -50));
+
+  //holeSpawn.push(new Hole(random(candyLane), -50));
+
+  car = new Car(width / 2, height - 200);
+  timer = new Timer(width*0.04, height - height*0.18);
 }
 
 /*----------------- draw -----------------*/
 function draw() {
-  background(220);
 
+  //background(220);
+  
   //bgscroll
-  image(bg, width / 2, lane1, width, bg.height);
-  image(bg, width / 2, lane2, width, bg.height);
+  image(bg, width/2, lane1, width, height);
+  image(bg, width/2, lane2, width, height);
 
   lane1 += scroll;
   lane2 += scroll;
 
-  if (lane1 >= height) {
-    lane1 = lane2 - bg.height;
+  if (lane1 >= height*1.5) {
+  lane1 = -height/2;
   }
-  if (lane2 >= height) {
-    lane2 = lane1 - bg.height;
+  if (lane2 >= height*1.5) {
+  lane2 = -height/2;
   }
 
   //handle input
   handleInput();
+  readSerialData();
 
-  car.update();
+  timer.show();
+  car.show();
 
+
+  //obstacles
   spawnCounter++;
   if (spawnCounter >= SPAWN_RATE) {
     candySpawn.push(new Candy(random(candyLane), -50));
     spawnCounter = 0;
   }
-
-  car.show();
 
   for (let i = candySpawn.length - 1; i >= 0; i--) {
     candySpawn[i].update();
@@ -88,14 +137,37 @@ function draw() {
     candySpawn[i].checkPassed(car);
 
     if (candySpawn[i].hits(car)) {
-       candySpawn.splice(i, 1);
+      candySpawn.splice(i, 1);
       score ++;
+      sfxScore.play();
       continue;
     }
      if (candySpawn[i].y > height + 50) {
     candySpawn.splice(i, 1);
     }
   }
+
+  holeCounter++;
+  if (holeCounter >= HOLE_RATE) {
+    holeSpawn.push(new Hole(candyLane[0, 2], -300));
+    holeCounter = 100;
+  }
+
+  for (let e = holeSpawn.length - 1; e >= 0; e--) {
+    holeSpawn[e].update();
+    holeSpawn[e].show();
+    holeSpawn[e].checkPassed(car);
+
+    if (holeSpawn[e].hits(car)) {
+      gameOver();
+    }
+  }
+  
+
+  timer.update();
+  car.update();
+
+
   //draw score
   textAlign(CENTER);
   textFont(arcadeFont);
@@ -103,29 +175,56 @@ function draw() {
   fill(255);
   text(score, width / 2, 80);
 
-  // Receive data from Arduino
+  if (score > highScore) {
+      highScore = score;
+      storeItem("highScore", highScore);
+  }
+
+}
+
+function readSerialData() {
   if (port.opened()) {
-    serialData = port.readUntil("\n");
-    // Only log and use data that has information, not empty signals
-    if (serialData[0]) {
-      console.log(serialData);
+    let serialData = port.readUntil("\n");
+    if (serialData) {
+      dir = serialData[5];
+      //console.log(dir);
+      resetBtn = serialData[14];
+      //console.log(resetBtn);
     }
+    console.log(serialData);
   }
 }
+// /*----------------- arduino -----------------*/
+//   if (port.opened()) {
+//     serialData = port.readUntil("\n");
+//     // Only log and use data that has information, not empty signals
+//     if (serialData) {
+//       dir = serialData[5];
+//       // console.log(dir);
+
+//       resetBtn = serialData[14];
+//       // console.log(resetBtn);
+      
+//       //dir: 1 reset: 1
+//       //012345678901234
+//     }
+//   }
+//   console.log(serialData);
+// }
 
 /*----------------- handle input -----------------*/
 function handleInput() {
-  if (keyCode === RIGHT_ARROW) {
+  if (keyCode === RIGHT_ARROW || dir == 0) {
     car.turnRight();
   }
-  if (keyCode === LEFT_ARROW) {
+  if (keyCode === LEFT_ARROW || dir == 1) {
     car.turnLeft();
   }
 }
 function keyPressed() {
-  if (isGameOver == true && key == " ") {
+  if ((isGameOver == true && key == "r") || (isGameOver == true && resetBtn == 1)) {
     resetGame();
-  } else if (hasGameBegun == false && key == " ") {
+  } else if ((hasGameBegun == false && key == "r") || (hasGameBegun == false && resetBtn == 1)) {
     hasGameBegun = true;
     loop();
   }
@@ -135,37 +234,82 @@ function keyPressed() {
 /*----------------- game reset -----------------*/
 function gameOver() {
   noLoop();
+  isGameOver = true;
+  sfxGameOver.play();
+
   fill(0, 0, 0, 150);
   rect(0, 0, width, height);
 
   textAlign(CENTER);
   textFont(arcadeFont);
-  textSize(35);
+  textSize(55);
   fill(255);
   text("GAME OVER!", width / 2, height / 2.5);
 
   textFont(bodyFont);
-  textSize(12);
-  text("Press SPACE BAR to play again.", width / 2, height / 2);
+  textSize(16);
+  text("High Score: " + highScore , width / 2, height / 2);
+
+  textFont(bodyFont);
+  textSize(16);
+  text("Press SPACE BAR to play again.", width / 2, height / 1.5);
+
 }
+
+function gameFinish() {
+  isGameOver = true;
+  sfxGameStart.play();
+
+  fill(215, 62, 123, 150);
+  rect(0, 0, width, height);
+
+  textAlign(CENTER);
+  textFont(arcadeFont);
+  textSize(55);
+  fill(255);
+  text("RACE COMPLETE!", width / 2, height / 2.5);
+
+  textFont(bodyFont);
+  textSize(16);
+  text("High Score: " + highScore , width / 2, height / 2);
+
+  textFont(bodyFont);
+  textSize(16);
+  text("Press SPACE BAR to play again.", width / 2, height / 1.5);
+
+}
+
 function resetGame() {
   score = 0;
   isGameOver = false;
 
-  car = new Car(width / 2, height - 350);
+  car = new Car(width / 2, height - 200);
   candySpawn = [new Candy(random(candyLane), -50)];
+  holeSpawn = [new Hole(candyLane[0, 2], -300)];
+
+  timer = new Timer(width*0.04, height - height*0.18);
 
   //button.style("opacity", 0);
   loop();
 }
+
+// function highScore() {
+
+//   highScores.push(newScore);
+//   highScores.sort((a, b) => b.score - a.score);
+//   highScores.sort((a, b) => b.score - a.score);
+//   highScores.splice(HIGH_SCORES, highScore.length - 1);
+
+//   newScore = highScore[0];
+// }
 
 /*----------------- classes -----------------*/
 class Car {
   constructor(x, y, w, h) {
     this.pos = createVector(x, y);
     this.vel = createVector(0, 0);
-    this.w = 390;
-    this.h = 510;
+    this.w = 195;
+    this.h = 255;
     this.leftTurn = -0.6;
     this.rightTurn = 0.6;
   }
@@ -176,13 +320,15 @@ class Car {
     this.vel.x += this.leftTurn;
   }
   show() {
-    //rect(this.pos.x - 185, this.pos.y - 260, this.w, this.h);
+    //rect(this.pos.x - 92, this.pos.y - 130, this.w, this.h);
     image(carImage, this.pos.x, this.pos.y);
+    carImage.resize(260, 317);
   }
   update() {
     this.pos.add(this.vel);
     this.vel.mult(0.9);
-    if (this.pos.x - 185 < 200 || this.pos.x + this.w > width -200) {
+    if (this.pos.x - 92 < 320 || this.pos.x - 92 + this.w > width - 320) {
+      noLoop();
       gameOver();
     }
   }
@@ -192,15 +338,15 @@ class Candy {
   constructor(x, y, w, h) {
     this.x = x;
     this.y = y;
-    this.w = 160;
-    this.h = 160;
+    this.w = 80;
+    this.h = 80;
     this.speed = CANDY_SPEED;
     this.type = random(candies);
 
-    this.top = this.y - 90;
-    this.bottom = this.y - 90 + this.h;
-    this.left = this.x - 70;
-    this.right = this.x -  70 + this.w;
+    this.top = this.y - 45;
+    this.bottom = this.y - 45 + this.h;
+    this.left = this.x - 35;
+    this.right = this.x - 35 + this.w;
 
     this.passed = false;
   }
@@ -208,13 +354,17 @@ class Candy {
     this.y += this.speed;
   }
   show() {
-    //rect(this.x - 70, this.y - 90, this.w, this.h);
+    //rect(this.x - 35, this.y - 45, this.w, this.h);
     image(this.type, this.x, this.y);
+    candy1.resize(130, 120);
+    candy2.resize(130, 120);
+    candy3.resize(130, 120);
+    candy4.resize(130, 120);
   }
 
   hits(car) {
-    const overlapX = car.pos.x - 180 < this.x - 70 + this.w && car.pos.x - 180 + car.w > this.x - 70;
-    const overlapY = car.pos.y - 260 < this.y - 90 + this.h && car.pos.y - 260 + car.h > this.y - 90;
+    const overlapX = car.pos.x - 92 < this.x - 35 + this.w && car.pos.x - 92 + car.w > this.x - 35;
+    const overlapY = car.pos.y - 130 < this.y - 45 + this.h && car.pos.y - 130 + car.h > this.y - 45;
     return overlapX && overlapY;
 
 //     const aboveCandy = car.pos.y + car.w > this.top;
@@ -223,7 +373,99 @@ class Candy {
 //     const rightCandy = car.pos.x + car.w > this.right;
 
 //     return withinX && (aboveCandy || belowCandy || leftCandy || rightCandy);
+  }
+
+  checkPassed(car) {
+    if (this.passed == false) {
+      if (
+        car.pos.y > this.y + this.h ||
+        car.pos.y + car.h < this.y ||
+        car.pos.x > this.x + this.w ||
+        car.pos.x + car.w < this.x
+      ) {
+        //score = score + 1;
+        this.passed = true;
+      }
+    }
+  }
+}
+
+class Timer {
+  constructor (x, y, w, h) {
+    this.x = x;
+    this.y = y;
+    this.w = 100;
+    this.h = 100;
+    this.speed = TIMER_SPEED;
     
+    this.height = TIMER_SPEED;
+    this.fixedy = y + 10;
+
+    this.finishy = - 200;
+    this.showFinishLine = false 
+  }
+  update() {
+    this.y -= this.speed;
+    this.height -= this.speed;
+
+    if (this.y < height*0.18 + 50) {
+      this.showFinishLine = true;
+      this.finishy += 12;
+    }
+
+    if (this.y < height*0.18) {
+      noLoop();
+      gameFinish();
+    }
+  }
+  show() {
+    //timerbar
+    //ellipse(this.x, this.y, this.w);
+    push();
+    rectMode(CENTER);
+    stroke(darkpink);
+    strokeWeight(4);
+    fill(peach);
+    rect(width*0.04, height/2, 25, height/1.5, 20);
+    pop();
+
+    push();
+    //timer run
+    noStroke();
+    fill(pink);
+    rect(this.x - 12.5 + 1.5, this.fixedy, 22, this.height, 20);
+    pop();
+
+    image(vanellopeFinishline, this.x, this.fixedy - height/1.5 - 20);
+    vanellopeFinishline.resize(100, 100);
+    image(vanellopeIcon, this.x, this.y - 25, this.w, this.h);
+
+    if (this.showFinishLine) {
+      image(finishLine, width / 2, this.finishy, 1336 * 0.6, 187 * 0.6);
+    }
+  }
+}
+
+class Hole {
+  constructor (x, y, w, h) {
+    this.x = x; 
+    this.y = y;
+    this.w = 190;
+    this.h = 110; 
+    this.speed = HOLE_SPEED;
+  }
+  update() {
+    this.y += this.speed;
+  }
+  show() {
+    //rect(this.x - 100, this.y - 60, this.w, this.h);
+    image(sinkHole, this.x, this.y, 423*0.65, 213*0.65);
+  }
+
+  hits(car) {
+    const overlapX = car.pos.x - 92 < this.x - 100 + this.w && car.pos.x - 92 + car.w > this.x - 100;
+    const overlapY = car.pos.y - 130 < this.y - 60 + this.h && car.pos.y - 130 + car.h > this.y - 60;
+    return overlapX && overlapY;
   }
 
   checkPassed(car) {
@@ -247,9 +489,10 @@ function connectBtnClicked() {
   if (!port.opened()) {
     // If not already, open the port with baud rate 9600
     // Make sure baud rate here matches settings in Arduino
-    port.open(9600);
+    port.open(115200);
   } else {
     // Otherwise, close the port
     port.close();
   }
 }
+
