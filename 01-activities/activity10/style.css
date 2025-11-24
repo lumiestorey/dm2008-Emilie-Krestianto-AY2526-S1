@@ -1,0 +1,20 @@
+html, body {
+  margin: 0;
+  padding: 0;
+}
+canvas {
+  display: block;
+}
+
+.bg-btn {
+  background: "#85cbcc";
+  border-radius: 100px;
+  padding: 6px 12px;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.bg-btn:hover {
+  background: white;
+  border: 2px solid blue; 
+}
