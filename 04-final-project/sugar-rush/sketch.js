@@ -62,12 +62,12 @@ function preload() {
 
   candies = [candy1, candy2, candy3, candy4];
 
-  sinkHole = loadImage("/assets/sinkhole-01.png");
+  sinkHole = loadImage("assets/sinkhole-01.png");
 
-  vanellopeIcon = loadImage("/assets/vanellope-icon.png");
-  vanellopeFinishline = loadImage("/assets/vanellope-finishline.png");
+  vanellopeIcon = loadImage("assets/vanellope-icon.png");
+  vanellopeFinishline = loadImage("assets/vanellope-finishline.png");
 
-  finishLine = loadImage("/assets/finish-line.png");
+  finishLine = loadImage("assets/finish-line.png");
 }
 
 /*----------------- set up -----------------*/
