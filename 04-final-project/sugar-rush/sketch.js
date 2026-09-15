@@ -264,7 +264,7 @@ function showGameOverScreen() {
 
   textFont(bodyFont);
   textSize(16);
-  text("Press GREEN BUTTON to play again.", width / 2, height / 1.5);
+  text("Press GREEN BUTTON / r to play again.", width / 2, height / 1.5);
 
 }
 
