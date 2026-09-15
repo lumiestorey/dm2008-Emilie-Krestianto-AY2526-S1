@@ -45,20 +45,20 @@ const TIMER_SPEED = 0.75;
 
 /*----------------- preload -----------------*/
 function preload() {
-  arcadeFont = loadFont("/font/KarmaticArcade.ttf");
-  bodyFont = loadFont("/font/PressStart.ttf");
+  arcadeFont = loadFont("font/KarmaticArcade.ttf");
+  bodyFont = loadFont("font/PressStart.ttf");
 
-  sfxGameStart = loadSound("/assets/sfx-gamestart.mp3");
-  sfxGameOver = loadSound("/assets/sfx-gameover.mp3");
-  sfxScore = loadSound("/assets/sfx-score.mp3");
+  sfxGameStart = loadSound("assets/sfx-gamestart.mp3");
+  sfxGameOver = loadSound("assets/sfx-gameover.mp3");
+  sfxScore = loadSound("assets/sfx-score.mp3");
 
-  bg = loadImage("/assets/background.jpg");
-  carImage = loadImage("/assets/car.png");
+  bg = loadImage("assets/background.jpg");
+  carImage = loadImage("assets/car.png");
 
-  candy1 = loadImage("/assets/candy-pinkspiral.png");
-  candy2 = loadImage("/assets/candy-pinkround.png");
-  candy3 = loadImage("/assets/candy-greenswirl.png");
-  candy4 = loadImage("/assets/candy-greensquare.png");
+  candy1 = loadImage("assets/candy-pinkspiral.png");
+  candy2 = loadImage("assets/candy-pinkround.png");
+  candy3 = loadImage("assets/candy-greenswirl.png");
+  candy4 = loadImage("assets/candy-greensquare.png");
 
   candies = [candy1, candy2, candy3, candy4];
 
